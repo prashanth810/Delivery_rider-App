@@ -11,6 +11,16 @@
     --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
 }
 
+.pickup-order-list {
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.pickup-order-list::-webkit-scrollbar {
+    display: none;
+}
+
 @layer base {
     * {
         scroll-behavior: smooth;

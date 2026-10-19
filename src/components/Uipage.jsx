@@ -9,7 +9,7 @@ export const Logo = ({ light = false, size = "text-xl" }) => (
             <circle cx="35" cy="32" r="5" stroke="#fff" strokeWidth="2.5" />
             <path d="M14 32l6-10h8l7 10M24 22l-2-5h-4M28 22l-1 10" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className={`${size} font-extrabold tracking-tight ${light ? "text-white" : "text-brand-900"}`}>QuickRider</span>
+        <span className={`${size} font-extrabold tracking-tight ${light ? "text-white" : "text-brand-900"}`}>QuicRider</span>
     </div>
 );
 
