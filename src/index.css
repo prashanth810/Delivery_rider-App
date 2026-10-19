@@ -1,12 +1,129 @@
 @import "tailwindcss";
 
+@theme {
+    --color-brand-50: #effaf3;
+    --color-brand-100: #d7f3e1;
+    --color-brand-200: #b0e6c4;
+    --color-brand-500: #1a9a57;
+    --color-brand-600: #12804a;
+    --color-brand-700: #0f663c;
+    --color-brand-900: #0b3d2e;
+    --font-sans: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
 @layer base {
     * {
-        font-family: Arial, Helvetica, sans-serif;
         scroll-behavior: smooth;
+    }
+
+    body {
+        @apply bg-slate-50 text-slate-900 antialiased;
     }
 }
 
 .scrollbar::-webkit-scrollbar {
     display: none;
+}
+
+@keyframes pop {
+    0% {
+        transform: scale(.6);
+        opacity: 0
+    }
+
+    70% {
+        transform: scale(1.08)
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1
+    }
+}
+
+.animate-pop {
+    animation: pop .45s ease-out both;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(14px)
+    }
+
+    to {
+        opacity: 1;
+        transform: none
+    }
+}
+
+.animate-fade-up {
+    animation: fadeUp .4s ease-out both;
+}
+
+@keyframes floaty {
+
+    0%,
+    100% {
+        transform: translateY(0)
+    }
+
+    50% {
+        transform: translateY(-8px)
+    }
+}
+
+.animate-floaty {
+    animation: floaty 4s ease-in-out infinite;
+}
+
+/* map pins (Leaflet divIcons) */
+.qr-pin {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, .35);
+    font-size: 17px;
+}
+
+.qr-rider {
+    background: #12804a;
+}
+
+.qr-rider::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: 9999px;
+    border: 2px solid #12804a;
+    animation: ping 1.8s ease-out infinite;
+}
+
+.qr-pickup {
+    background: #f59e0b;
+}
+
+.qr-drop {
+    background: #0f663c;
+}
+
+@keyframes ping {
+    from {
+        transform: scale(.6);
+        opacity: .9
+    }
+
+    to {
+        transform: scale(1.5);
+        opacity: 0
+    }
+}
+
+.leaflet-container {
+    font-family: inherit;
+    z-index: 0;
 }

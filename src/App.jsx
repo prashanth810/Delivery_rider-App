@@ -1,11 +1,5 @@
-import React from 'react'
+import UiDemo from "./components/UiDemo";
 
-const App = () => {
-  return (
-    <session>
-      APP for delivery
-    </session>
-  )
-}
+const App = () => <UiDemo />;
 
-export default App
+export default App;
