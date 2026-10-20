@@ -32,11 +32,11 @@ function SelectedOrderCamera({ selectedOrder }) {
     return null;
 }
 
-export default function PickupMap({ orders, selectedOrder, onSelect }) {
+export default function PickupMap({ orders, selectedOrder, onSelect, riderPoint = RIDER_LOCATION, live = false }) {
     return (
-        <div className="city-map" aria-label="OpenStreetMap showing the rider and pickup requests in Hyderabad">
+        <div className="city-map" aria-label="OpenStreetMap showing the rider and available pickup locations">
             <MapContainer
-                center={[RIDER_LOCATION.lat, RIDER_LOCATION.lng]}
+                center={[riderPoint.lat, riderPoint.lng]}
                 zoom={12}
                 scrollWheelZoom
                 className="pickup-leaflet-map"
@@ -47,12 +47,12 @@ export default function PickupMap({ orders, selectedOrder, onSelect }) {
                 />
                 <SelectedOrderCamera selectedOrder={selectedOrder} />
                 <Marker
-                    position={[RIDER_LOCATION.lat, RIDER_LOCATION.lng]}
+                    position={[riderPoint.lat, riderPoint.lng]}
                     icon={RIDER_ICON}
-                    title="Sample rider location"
+                    title={live ? "Your live location" : "Sample rider location"}
                     zIndexOffset={1000}
                 />
-                {orders.map((order) => (
+                {orders.filter((order) => Number.isFinite(order.pickup?.lat) && Number.isFinite(order.pickup?.lng)).map((order) => (
                     <Marker
                         key={order.id}
                         position={[order.pickup.lat, order.pickup.lng]}

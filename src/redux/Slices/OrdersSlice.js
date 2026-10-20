@@ -1,52 +1,161 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { handleaccept, handleaccreptedride, handlegetlatestorders, handlemakeonline } from "../../services/Serviceapis/DeliveryApi";
 
-const KEY = "qr_orders_v1";
-export const DEFAULT_LOCATION = { lat: 17.4435, lng: 78.3772 }; // Hitech City, Hyderabad
+const ACCEPTED_KEY = "acceptedDelivery";
 
-const o = (id, store, customer, items, amount, pay, km, p, d, status = "new", extra = {}) => ({
-    id, store, customer, items, amount, pay, km,
-    pickup: { address: p[0], lat: p[1], lng: p[2] },
-    drop: { address: d[0], lat: d[1], lng: d[2] },
-    status, ...extra,
+const loadAccepted = () => {
+    try {
+        const saved = sessionStorage.getItem(ACCEPTED_KEY);
+        return saved ? JSON.parse(saved) : null;
+    } catch {
+        return null;
+    }
+};
+
+const saveAccepted = (data) => {
+    try {
+        if (data) sessionStorage.setItem(ACCEPTED_KEY, JSON.stringify(data));
+        else sessionStorage.removeItem(ACCEPTED_KEY);
+    } catch {
+        // storage unavailable – ignore
+    }
+};
+
+// Get the latest available orders.
+export const getallorders = createAsyncThunk("get/orders", async (_, ThunkAPi) => {
+    try {
+        const response = await handlegetlatestorders();
+        if (!Array.isArray(response.data?.data)) {
+            throw new Error("The available orders response has an unexpected format.");
+        }
+        return response.data.data;
+    }
+    catch (error) {
+        return ThunkAPi.rejectWithValue(error.response?.data?.message || error.message || "Unable to load available orders.");
+    }
 });
 
-const seed = () => [
-    o("QR4821", "Fresh Mart", "Anil Reddy", 6, 64, "Paid", 2.4, ["Banjara Hills, Rd No. 1", 17.4156, 78.4347], ["Jubilee Hills, Rd No. 36", 17.4326, 78.4071]),
-    o("QR4822", "Green Basket", "Sneha K", 3, 82, "COD", 3.8, ["Madhapur, Ayyappa Society", 17.4486, 78.3908], ["Hitech City, Cyber Towers", 17.4435, 78.3772]),
-    o("QR4823", "Daily Needs", "Ravi Teja", 9, 71, "Paid", 3.1, ["Gachibowli, DLF Rd", 17.4401, 78.3489], ["Kondapur, Botanical Garden", 17.46, 78.364]),
-    o("QR4824", "Spice Kitchen", "Meena S", 2, 58, "COD", 2.2, ["Kukatpally, JNTU", 17.4948, 78.3996], ["KPHB Colony, Phase 3", 17.4849, 78.3915]),
-    o("QR4790", "Fresh Mart", "Kiran P", 4, 66, "Paid", 2.9, ["Banjara Hills", 17.4156, 78.4347], ["Film Nagar", 17.4128, 78.4059], "delivered", { at: Date.now() - 3600000 }),
-    o("QR4788", "Green Basket", "Divya R", 5, 74, "Paid", 3.4, ["Madhapur", 17.4486, 78.3908], ["Gachibowli", 17.4401, 78.3489], "delivered", { at: Date.now() - 90000000 }),
-    o("QR4781", "Daily Needs", "Suresh B", 2, 49, "COD", 1.8, ["Kondapur", 17.46, 78.364], ["Madhapur", 17.4486, 78.3908], "cancelled", { at: Date.now() - 172800000, reason: "Customer unavailable" }),
-];
+// make it online / offline
+export const makeitonlineofline = createAsyncThunk("post/online", async (data, ThunkApi) => {
+    try {
+        const resposne = await handlemakeonline(data);
+        return resposne.data.data;
+    }
+    catch (error) {
+        return ThunkApi.rejectWithValue(error.response?.data?.message || error.message);
+    }
+});
 
-const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || seed(); } catch { return seed(); } };
-const persist = (orders) => { try { localStorage.setItem(KEY, JSON.stringify(orders)); } catch { /* ignore */ } };
+// accept order -> returns the full delivery (order items, customer, address, rider info)
+export const acceptbooking = createAsyncThunk("post/accept", async (id, ThunkApi) => {
+    try {
+        const response = await handleaccept(id);
+        return response.data.data;
+    }
+    catch (error) {
+        return ThunkApi.rejectWithValue(error.response?.data?.message || error.message || "Unable to accept this order.");
+    }
+});
 
-const NEXT = { accepted: "picked", picked: "delivered" };
+// my acceted orders 
+export const getacceptrides = createAsyncThunk("get/myacceptrides", async (_, ThunkApi) => {
+    try {
+        const response = await handleaccreptedride();
+        return response.data.data;
+    }
+    catch (error) {
+        return ThunkApi.rejectWithValue(error.message);
+    }
+})
+
+const initialState = {
+    orderdata: {
+        orderloading: false,
+        ordererror: null,
+        orderlist: [],
+    },
+    rideronline: {
+        online: false,
+        onlineloading: false,
+        onlineerror: null,
+    },
+    accpetbooking: {
+        acceptloading: false,
+        acceptdata: loadAccepted(),
+        accepterror: null,
+    },
+};
 
 const OrdersSlice = createSlice({
     name: "orders",
-    initialState: { list: load() },
+    initialState,
     reducers: {
-        acceptOrder: (s, { payload }) => {
-            const x = s.list.find((i) => i.id === payload);
-            if (x?.status === "new") x.status = "accepted";
-            persist(s.list);
+        clearAcceptedBooking: (state) => {
+            state.accpetbooking.acceptdata = null;
+            state.accpetbooking.accepterror = null;
+            saveAccepted(null);
         },
-        cancelOrder: (s, { payload: { id, reason } }) => {
-            const x = s.list.find((i) => i.id === id);
-            if (x && ["new", "accepted"].includes(x.status)) { x.status = "cancelled"; x.reason = reason; x.at = Date.now(); }
-            persist(s.list);
-        },
-        advanceOrder: (s, { payload }) => {
-            const x = s.list.find((i) => i.id === payload);
-            if (x && NEXT[x.status]) { x.status = NEXT[x.status]; if (x.status === "delivered") x.at = Date.now(); }
-            persist(s.list);
-        },
-        resetOrders: (s) => { s.list = seed(); persist(s.list); },
+    },
+    extraReducers: (builder) => {
+        builder
+            // order data
+            .addCase(getallorders.pending, (state) => {
+                state.orderdata.orderloading = true;
+                state.orderdata.ordererror = null;
+            })
+            .addCase(getallorders.fulfilled, (state, action) => {
+                state.orderdata.orderloading = false;
+                state.orderdata.orderlist = action.payload;
+            })
+            .addCase(getallorders.rejected, (state, action) => {
+                state.orderdata.orderloading = false;
+                state.orderdata.ordererror = action.payload;
+            })
+
+            // make it online / offline
+            .addCase(makeitonlineofline.pending, (state) => {
+                state.rideronline.onlineloading = true;
+                state.rideronline.onlineerror = null;
+            })
+            .addCase(makeitonlineofline.fulfilled, (state, action) => {
+                state.rideronline.onlineloading = false;
+                state.rideronline.online = action.payload;
+            })
+            .addCase(makeitonlineofline.rejected, (state, action) => {
+                state.rideronline.onlineloading = false;
+                state.rideronline.onlineerror = action.payload;
+            })
+
+            // accept order
+            .addCase(acceptbooking.pending, (state) => {
+                state.accpetbooking.acceptloading = true;
+                state.accpetbooking.accepterror = null;
+            })
+            .addCase(acceptbooking.fulfilled, (state, action) => {
+                state.accpetbooking.acceptloading = false;
+                state.accpetbooking.acceptdata = action.payload;
+                saveAccepted(action.payload);
+            })
+            .addCase(acceptbooking.rejected, (state, action) => {
+                state.accpetbooking.acceptloading = false;
+                state.accpetbooking.accepterror = action.payload;
+            })
+
+            // get my accptes inly
+            .addCase(getacceptrides.pending, (state) => {
+                state.accpetbooking.acceptloading = true;
+                state.accpetbooking.accepterror = null;
+            })
+            .addCase(getacceptrides.fulfilled, (state, action) => {
+                state.accpetbooking.acceptloading = false;
+                state.accpetbooking.acceptdata = action.payload;
+            })
+            .addCase(getacceptrides.rejected, (state, action) => {
+                state.accpetbooking.acceptloading = false;
+                state.accpetbooking.accepterror = action.payload;
+            })
     },
 });
 
-export const { acceptOrder, cancelOrder, advanceOrder, resetOrders } = OrdersSlice.actions;
+export const { clearAcceptedBooking } = OrdersSlice.actions;
 export default OrdersSlice.reducer;

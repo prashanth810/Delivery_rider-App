@@ -1,5 +1,8 @@
 import { authApi } from "../../services/BaseUrl";
 
+
+const baseurl = '/api/auth/v6';
+
 // regsiter api
 export const Registerapi = async (data) => {
     try {
@@ -14,14 +17,8 @@ export const Registerapi = async (data) => {
 
 // login 
 export const LoginApi = async (data) => {
-    try {
-        const resposne = await authApi.post("/api/auth/v1/login", data);
-        return resposne;
-    }
-    catch (error) {
-        console.log("Error in LoginApi", error);
-        throw error;
-    };
+    const { email, password } = data;
+    return authApi.post(`${baseurl}/rider/login`, { email, password });
 }
 
 // get all my profile info 

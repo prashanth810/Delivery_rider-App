@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import {
     FiArrowRight,
     FiCheck,
@@ -14,6 +15,7 @@ import {
 } from "react-icons/fi";
 import { FaMotorcycle } from "react-icons/fa";
 import Brand from "../common/Brand";
+import { handleriderlogin } from "../../redux/Slices/AuthSlice";
 
 function AuthFrame({ children, mode }) {
     return (
@@ -50,25 +52,96 @@ function AuthFrame({ children, mode }) {
     );
 }
 
+
 export function LoginScreen({ onContinue }) {
-    const [phone, setPhone] = useState("");
+    const dispatch = useDispatch();
+    const loading = useSelector((state) => state.auth.riderlogin.loginloading);
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+
+    const submit = async (event) => {
+        event.preventDefault();
+        setError("");
+
+        const result = await dispatch(handleriderlogin({
+            email: email.trim(),
+            password,
+        }));
+
+        if (handleriderlogin.fulfilled.match(result)) {
+            onContinue(result.payload.user);
+        } else {
+            setError(result.payload || "Login failed. Please check your details and try again.");
+        }
+    };
+
     return (
         <AuthFrame mode="login">
             <span className="eyebrow">RIDER PORTAL</span>
             <h2>Welcome back</h2>
-            <p className="auth-subtitle">Sign in to pick up where you left off.</p>
-            <form className="demo-form" onSubmit={(event) => { event.preventDefault(); onContinue(); }}>
-                <label htmlFor="login-phone">Mobile number</label>
-                <div className="input-wrap"><FiPhone /><span className="country-code">+91</span><input id="login-phone" type="tel" inputMode="numeric" autoComplete="tel" maxLength={10} placeholder="98765 43210" value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, ""))} required minLength={10} /></div>
+            <p className="auth-subtitle">
+                Sign in to pick up where you left off.
+            </p>
+
+            <form
+                className="demo-form"
+                onSubmit={submit}
+            >
+                <label htmlFor="login-email">Email address</label>
+                <div className="input-wrap">
+                    <FiMail aria-hidden="true" />
+                    <input
+                        id="login-email"
+                        type="email"
+                        autoComplete="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        required
+                    />
+                </div>
+
                 <label htmlFor="login-password">Password</label>
-                <input className="text-input" id="login-password" type="password" autoComplete="current-password" placeholder="Enter your password" required minLength={4} />
-                <button type="button" className="forgot-link" onClick={() => window.alert("Password reset is not connected in this UI preview.")}>Forgot password?</button>
-                <button className="primary-button auth-submit" type="submit">Sign in <FiArrowRight /></button>
+                <div className="input-wrap">
+                    <FiLock aria-hidden="true" />
+                    <input
+                        id="login-password"
+                        type="password"
+                        autoComplete="current-password"
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        required
+                    />
+                </div>
+
+                {error && <p className="field-error" role="alert">{error}</p>}
+
+                <button
+                    type="button"
+                    className="forgot-link"
+                    onClick={() =>
+                        window.alert(
+                            "Password reset is not connected in this UI preview."
+                        )
+                    }
+                >
+                    Forgot password?
+                </button>
+
+                <button
+                    className="primary-button auth-submit"
+                    type="submit"
+                    disabled={loading}
+                >
+                    {loading ? "Signing in..." : <>Sign in <FiArrowRight /></>}
+                </button>
             </form>
-            <button className="text-button demo-enter" type="button" onClick={onContinue}>Explore the dashboard preview <FiArrowRight /></button>
         </AuthFrame>
     );
 }
+
 
 export function RegisterScreen({ onContinue }) {
     const [form, setForm] = useState({ name: "", phone: "", email: "", password: "" });

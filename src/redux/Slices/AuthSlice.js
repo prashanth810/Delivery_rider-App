@@ -1,84 +1,105 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import {
-    getmyprofielinfo, handlelogout, handleprofileedit, LoginApi, Registerapi,
-    ResendOtpApi, SaveStepApi, SubmitOnboardingApi, VerifyOtpApi,
-} from "../services/Apis";
+import { LoginApi } from "../services/Apis";
 
-const errMsg = (e) =>
-    e.response?.data?.message || e.response?.data?.error ||
-    (typeof e.response?.data === "string" ? e.response.data : null) ||
-    (e.response?.status === 429 ? "Too many requests" : null) ||
-    e.message || "Something went wrong";
+const readStoredUser = () => {
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) return null;
 
-const thunk = (name, fn) =>
-    createAsyncThunk(name, async (arg, { rejectWithValue }) => {
-        try { return await fn(arg); } catch (e) { return rejectWithValue(errMsg(e)); }
-    });
+    try {
+        return JSON.parse(storedUser);
+    } catch {
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+        return null;
+    }
+};
 
-export const registerRider = thunk("auth/register", async (d) => (await Registerapi(d)).data);
-export const resendOtp = thunk("auth/resendOtp", async (d) => (await ResendOtpApi(d)).data);
-export const verifyOtp = thunk("auth/verifyOtp", async (d) => (await VerifyOtpApi(d)).data);
-export const loginRider = thunk("auth/login", async (d) => {
-    const { remember, ...creds } = d;
-    const res = (await LoginApi(creds)).data;
-    return { ...res, remember };
-});
-export const fetchProfile = thunk("auth/profile", async () => (await getmyprofielinfo()).data.data);
-export const saveStep = thunk("auth/saveStep", async ({ step, data }) => (await SaveStepApi(step, data)).data.data);
-export const submitOnboarding = thunk("auth/submit", async () => (await SubmitOnboardingApi()).data.data);
-export const updateProfile = thunk("auth/updateProfile", async (d) => (await handleprofileedit(d)).data.data);
-export const logoutapi = createAsyncThunk("auth/logout", async () => {
-    try { await handlelogout(); } catch { /* ignore – always clear locally */ }
+const storedUser = readStoredUser();
+
+const getErrorMessage = (error) =>
+    error.response?.data?.message ||
+    error.response?.data?.error ||
+    (typeof error.response?.data === "string" ? error.response.data : null) ||
+    error.message ||
+    "Login failed. Please try again.";
+
+export const handleriderlogin = createAsyncThunk(
+    "rider/login",
+    async (credentials, { rejectWithValue }) => {
+        try {
+            const response = await LoginApi(credentials);
+            const body = response.data;
+            const data = body?.data ?? body;
+            const token =
+                data?.token ??
+                data?.accessToken ??
+                body?.token ??
+                body?.accessToken;
+
+            if (typeof token !== "string" || !token.trim()) {
+                return rejectWithValue("The login response did not include an authentication token.");
+            }
+
+            const user =
+                data?.user ??
+                data?.rider ??
+                body?.user ??
+                body?.rider ??
+                { email: credentials.email };
+
+            localStorage.setItem("token", token);
+            localStorage.setItem("user", JSON.stringify(user));
+
+            return { token, user, response: body };
+        } catch (error) {
+            return rejectWithValue(getErrorMessage(error));
+        }
+    },
+);
+
+export const riderLogout = createAsyncThunk("rider/logout", async () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
 });
 
 const initialState = {
-    user: null,
-    loading: false,
-    error: null,
-    pendingRegistration: null, // { phone } while the OTP popup is open
+    token: localStorage.getItem("token"),
+    user: storedUser,
+    riderlogin: {
+        loginloading: false,
+        logindata: null,
+        loginerror: null,
+    },
 };
 
 const AuthSlice = createSlice({
-    name: "auth",
+    name: "rider",
     initialState,
-    reducers: {
-        clearError: (s) => { s.error = null; },
-        cancelOtp: (s) => { s.pendingRegistration = null; },
-        logout: () => { },
-    },
-    extraReducers: (b) => {
-        const pending = (s) => { s.loading = true; s.error = null; };
-        const rejected = (s, a) => { s.loading = false; s.error = a.payload; };
-        const setUser = (s, a) => { s.loading = false; s.user = a.payload; };
-
-        b.addCase(registerRider.pending, pending)
-            .addCase(registerRider.fulfilled, (s, a) => { s.loading = false; s.pendingRegistration = a.payload.data; })
-            .addCase(registerRider.rejected, rejected)
-
-            .addCase(verifyOtp.pending, pending)
-            .addCase(verifyOtp.fulfilled, (s, a) => {
-                s.loading = false; s.pendingRegistration = null;
-                s.user = a.payload.data; s.token = a.payload.token;
+    reducers: {},
+    extraReducers: (builder) => {
+        builder
+            .addCase(handleriderlogin.pending, (state) => {
+                state.riderlogin.loginloading = true;
+                state.riderlogin.loginerror = null;
             })
-            .addCase(verifyOtp.rejected, rejected)
-
-            .addCase(loginRider.pending, pending)
-            .addCase(loginRider.fulfilled, (s, a) => {
-                s.loading = false; s.user = a.payload.data; s.token = a.payload.token;
+            .addCase(handleriderlogin.fulfilled, (state, action) => {
+                state.riderlogin.loginloading = false;
+                state.riderlogin.logindata = action.payload.response;
+                state.token = action.payload.token;
+                state.user = action.payload.user;
             })
-            .addCase(loginRider.rejected, rejected)
-
-            .addCase(fetchProfile.fulfilled, (s, a) => { s.booting = false; s.user = a.payload; })
-            .addCase(fetchProfile.rejected, (s) => { s.booting = false; s.token = null })
-
-            .addCase(saveStep.pending, pending).addCase(saveStep.fulfilled, setUser).addCase(saveStep.rejected, rejected)
-            .addCase(submitOnboarding.pending, pending).addCase(submitOnboarding.fulfilled, setUser).addCase(submitOnboarding.rejected, rejected)
-            .addCase(updateProfile.pending, pending).addCase(updateProfile.fulfilled, setUser).addCase(updateProfile.rejected, rejected)
-            .addCase(resendOtp.rejected, rejected)
-
-            .addCase(logoutapi.fulfilled, (s) => { s.user = null; s.token = null; s.pendingRegistration = null; });
+            .addCase(handleriderlogin.rejected, (state, action) => {
+                state.riderlogin.loginloading = false;
+                state.riderlogin.loginerror =
+                    action.payload || action.error.message || "Login failed. Please try again.";
+            })
+            .addCase(riderLogout.fulfilled, (state) => {
+                state.token = null;
+                state.user = null;
+                state.riderlogin.logindata = null;
+                state.riderlogin.loginerror = null;
+            });
     },
 });
 
-export const { logout, clearError, cancelOtp } = AuthSlice.actions;
 export default AuthSlice.reducer;

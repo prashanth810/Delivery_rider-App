@@ -9,16 +9,16 @@ import {
     FiCreditCard,
     FiMapPin,
     FiPackage,
-    FiSearch,
     FiShield,
     FiTrendingUp,
     FiTruck,
 } from "react-icons/fi";
 import { FaMotorcycle } from "react-icons/fa";
+import { HISTORY_ORDERS } from "../pickup/demoOrders";
 
 const money = (value) => `₹${value.toLocaleString("en-IN")}`;
 
-export function DashboardScreen({ profile, online, setOnline, orders, onAccept }) {
+export function DashboardScreen({ profile, online, setOnline, orders, onAccept, activeOrder = null }) {
     const active = orders.filter((order) => order.status === "New");
     return (
         <>
@@ -53,9 +53,9 @@ export function DashboardScreen({ profile, online, setOnline, orders, onAccept }
             </div>
             <section className="surface-card orders-panel">
                 <div className="section-heading"><div><h2>Nearby orders</h2><p>{online ? `${active.length} new requests around you` : "Go online to start receiving delivery requests"}</p></div><Link className="inline-link" to="/pickup">Open pickup map <FiArrowRight /></Link></div>
-                {online ? <OrderList orders={orders.slice(0, 2)} onAccept={onAccept} /> : <div className="empty-orders"><span><FiMapPin /></span><div><strong>Ready when you are</strong><p>Switch your status to online to see nearby requests.</p></div><button type="button" className="small-primary" onClick={() => setOnline(true)}>Go online <FiArrowRight /></button></div>}
+                {online ? <OrderList orders={orders.slice(0, 2)} onAccept={onAccept} activeOrder={activeOrder} /> : <div className="empty-orders"><span><FiMapPin /></span><div><strong>Ready when you are</strong><p>Switch your status to online to see nearby requests.</p></div><button type="button" className="small-primary" onClick={() => setOnline(true)}>Go online <FiArrowRight /></button></div>}
             </section>
-            <p className="sample-note"><FiShield /> This dashboard uses sample information for UI preview only.</p>
+            <p className="sample-note"><FiShield /> Performance figures are preview values; available deliveries are loaded from your account.</p>
         </>
     );
 }
@@ -79,13 +79,72 @@ function EarningsChart() {
     );
 }
 
-function OrderList({ orders, onAccept }) {
+function OrderList({ orders, onAccept, activeOrder = null }) {
     if (!orders.length) return <div className="no-orders">No new orders right now. We’ll show requests here when they’re available.</div>;
-    return <div className="order-list">{orders.map((order) => <article className="order-row" key={order.id}><span className="store-avatar"><FiPackage /></span><span className="order-description"><strong>{order.store}<span className="order-badge">{order.status}</span></strong><small><FiMapPin /> {order.address}</small><small><FiClock /> {order.distance} · approx. {order.time}</small></span><span className="order-payout"><strong>{money(order.payout)}</strong><small>estimated</small></span><button className="accept-button" type="button" disabled={order.status !== "New"} onClick={() => onAccept(order.id)}>{order.status === "New" ? "Accept" : order.status}<FiArrowRight /></button></article>)}</div>;
+    return <div className="order-list">{orders.map((order) => <article className="order-row" key={order.id}><span className="store-avatar"><FiPackage /></span><span className="order-description"><strong>{order.store}<span className="order-badge">{order.status}</span></strong><small><FiMapPin /> Drop · {order.area || "Delivery area unavailable"}</small><small><FiClock /> {formatWhen(order.createdAt)}</small></span><span className="order-payout"><strong>{order.paymentMethod === "ONLINE" ? "Paid online" : money(order.amountToCollect || 0)}</strong><small>{order.paymentMethod === "ONLINE" ? "payment" : "to collect"}</small></span>{activeOrder?.id === order.id ? <Link className="accept-button" to={`/delivery/${order.id}`}>View delivery<FiArrowRight /></Link> : <button className="accept-button" type="button" disabled={order.status !== "New" || !!activeOrder} onClick={() => onAccept(order.id)}>{order.status === "New" ? (activeOrder ? "Delivery in progress" : "Accept") : order.status}<FiArrowRight /></button>}</article>)}</div>;
 }
 
-export function OrdersScreen({ orders, onAccept }) {
-    return <><section className="page-title-row"><div><span className="eyebrow">YOUR ROUTE, YOUR PACE</span><h1>My deliveries</h1><p>Track new requests and your recent delivery activity.</p></div><span className="list-count"><FiPackage /> {orders.length} sample orders</span></section><section className="surface-card order-page-card"><div className="section-heading"><div><h2>Delivery requests</h2><p>Example requests to explore the rider experience.</p></div><button className="secondary-button filter-button" type="button"><FiSearch /> Find orders</button></div><OrderList orders={orders} onAccept={onAccept} /></section><p className="sample-note"><FiShield /> Orders are examples and are not connected to a dispatch service.</p></>;
+const STATUS_STYLE = {
+    Delivered: "bg-brand-100 text-brand-700",
+    Cancelled: "bg-red-100 text-red-700",
+    Accepted: "bg-blue-100 text-blue-700",
+    "Picked up": "bg-orange-100 text-orange-700",
+};
+
+const formatWhen = (time) => new Date(time).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+// "My deliveries": ongoing delivery (if any) + last orders. No accept buttons here.
+export function OrdersScreen({ orders = [] }) {
+    const ongoing = orders.filter((order) => ["Accepted", "Picked up"].includes(order.status));
+    const doneToday = orders
+        .filter((order) => order.status === "Delivered")
+        .map((order) => ({ id: order.id, orderNo: order.orderNo, store: order.store, area: order.area, customerName: order.customer?.name, items: order.items?.length || 1, distance: order.distance, payout: order.payout, status: "Delivered", at: order.createdAt }));
+    const history = [...doneToday, ...HISTORY_ORDERS];
+    const delivered = history.filter((order) => order.status === "Delivered");
+    const earned = delivered.reduce((sum, order) => sum + (Number.isFinite(order.payout) ? order.payout : 0), 0);
+
+    return (
+        <>
+            <section className="page-title-row"><div><span className="eyebrow">YOUR RIDE HISTORY</span><h1>My deliveries</h1><p>Your ongoing delivery and last orders.</p></div><span className="list-count"><FiPackage /> {history.length} recent orders</span></section>
+
+            {ongoing.length > 0 && (
+                <section className="mb-5 space-y-3">
+                    {ongoing.map((order) => (
+                        <Link key={order.id} to={`/delivery/${order.id}`} className="flex flex-wrap items-center gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-4 transition hover:border-brand-500">
+                            <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-700 text-xl text-white"><FiTruck /></span>
+                            <span className="min-w-0 flex-1"><strong className="block text-sm text-slate-900">{order.store} · #{order.orderNo}</strong><small className="text-xs text-slate-500">{order.status === "Accepted" ? "Go to pickup" : "On the way to customer"} · {order.customer?.name}</small></span>
+                            <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${STATUS_STYLE[order.status]}`}>{order.status}</span>
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700">Continue <FiArrowRight /></span>
+                        </Link>
+                    ))}
+                </section>
+            )}
+
+            <section className="mb-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4"><small className="text-xs text-slate-500">Delivered</small><strong className="block text-2xl text-slate-900">{delivered.length}</strong></div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4"><small className="text-xs text-slate-500">Earned</small><strong className="block text-2xl text-slate-900">{money(earned)}</strong></div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-4"><small className="text-xs text-slate-500">Cancelled</small><strong className="block text-2xl text-slate-900">{history.length - delivered.length}</strong></div>
+            </section>
+
+            <section className="surface-card order-page-card">
+                <div className="section-heading"><div><h2>Last orders</h2><p>Your recent delivery activity.</p></div></div>
+                <ul className="divide-y divide-slate-100">
+                    {history.map((order) => (
+                        <li key={order.id} className="flex flex-wrap items-center gap-4 py-3.5">
+                            <span className="grid h-11 w-11 place-items-center rounded-xl bg-slate-100 text-lg text-slate-600"><FiPackage /></span>
+                            <span className="min-w-0 flex-1">
+                                <strong className="block truncate text-sm text-slate-900">{order.store} <span className="font-normal text-slate-400">· #{order.orderNo}</span></strong>
+                                <small className="flex flex-wrap items-center gap-x-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1"><FiMapPin /> {order.area || "Delivery area unavailable"}</span><span>{order.customerName || "Customer details unavailable"}</span><span>{order.items} item{order.items > 1 ? "s" : ""} · {order.distance || "Distance unavailable"}</span></small>
+                            </span>
+                            <span className="text-right"><strong className="block text-sm text-slate-900">{Number.isFinite(order.payout) ? money(order.payout) : "—"}</strong><small className="text-xs text-slate-400">{formatWhen(order.at)}</small></span>
+                            <span className={`w-20 rounded-full py-1 text-center text-[11px] font-bold ${STATUS_STYLE[order.status]}`}>{order.status}</span>
+                        </li>
+                    ))}
+                </ul>
+            </section>
+            <p className="sample-note"><FiShield /> Orders are examples and are not connected to a dispatch service.</p>
+        </>
+    );
 }
 
 export function EarningsScreen() {
