@@ -37,11 +37,5 @@ export const handleaccept = async (id) => {
 
 // get accepted rides
 export const handleaccreptedride = async () => {
-    try {
-        const resposne = await deliveryApi.get(`${baseurl}/deliveries/my/active`);
-        return resposne;
-    }
-    catch (error) {
-        console.log("Getting Api error:", error.message?.data || error.message);
-    }
+    return deliveryApi.get(`${baseurl}/deliveries/my/active`);
 }

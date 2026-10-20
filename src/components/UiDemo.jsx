@@ -7,12 +7,19 @@ import { DashboardScreen, EarningsScreen, OrdersScreen, ProfileScreen } from "./
 import RiderShell from "./layout/RiderShell";
 import PickupMapScreen from "./pickup/PickupMapScreen";
 import DeliveryDetails from "./pickup/Deliverydetails";
-import { acceptbooking, getallorders } from "../redux/Slices/OrdersSlice";
+import { acceptbooking, getacceptrides, getallorders } from "../redux/Slices/OrdersSlice";
 import { riderLogout } from "../redux/Slices/AuthSlice";
 import "./UiDemo.css";
 
 const ONLINE_KEY = "freshrider_online_v1";
 const loadOnline = () => { try { return localStorage.getItem(ONLINE_KEY) === "true"; } catch { return false; } };
+
+const API_ORDER_STATUSES = {
+    ACCEPTED: "Accepted",
+    PICKED_UP: "Picked up",
+    PICKEDUP: "Picked up",
+    DELIVERED: "Delivered",
+};
 
 const mapAvailableOrder = (delivery) => {
     const dropArea = delivery.address || delivery.dropArea || {};
@@ -25,11 +32,13 @@ const mapAvailableOrder = (delivery) => {
         dropArea.street,
     ].filter(Boolean);
 
+    const statusKey = String(delivery.status || "").toUpperCase().replace(/[\s-]+/g, "_");
+
     return {
         ...delivery,
         id: delivery._id,
         orderNo,
-        store: `Order #${String(orderNo || "").slice(-6)}`,
+        store: delivery.storeName || `Order #${String(orderNo || "").slice(-6)}`,
         address: delivery.pickupAddress || "",
         pickupAddress: delivery.pickupAddress || "",
         area: [dropArea.city, dropArea.pincode, dropArea.landmark].filter(Boolean).join(", "),
@@ -48,7 +57,7 @@ const mapAvailableOrder = (delivery) => {
             note: item.weight || "",
         })),
         amountToCollect: Number.isFinite(amountToCollect) ? amountToCollect : 0,
-        status: "New",
+        status: API_ORDER_STATUSES[statusKey] || "New",
     };
 };
 
@@ -70,7 +79,7 @@ export default function UiDemo() {
     const dispatch = useDispatch();
     const { token, user } = useSelector((state) => state.auth);
     const { orderloading, ordererror, orderlist } = useSelector((state) => state.orders.orderdata);
-    const { acceptloading } = useSelector((state) => state.orders.accpetbooking);
+    const { acceptloading, acceptdata, accepterror } = useSelector((state) => state.orders.accpetbooking);
     const [profile, setProfile] = useState(() => ({
         name: user?.name || user?.fullName || user?.email || "Rider",
         phone: user?.phone || user?.mobile || "",
@@ -89,9 +98,20 @@ export default function UiDemo() {
         () => availableOrders.map((order) => ({ ...order, ...orderUpdates[order.id] })),
         [availableOrders, orderUpdates],
     );
+    const acceptedOrders = useMemo(
+        () => (Array.isArray(acceptdata) ? acceptdata : [])
+            .map(mapAvailableOrder)
+            .map((order) => ({ ...order, ...orderUpdates[order.id] })),
+        [acceptdata, orderUpdates],
+    );
+    const activeOrders = acceptedOrders.filter((order) => ["Accepted", "Picked up"].includes(order.status));
+    const activeOrder = activeOrders[0] || null;
 
     useEffect(() => {
-        if (token) dispatch(getallorders());
+        if (token) {
+            dispatch(getallorders());
+            dispatch(getacceptrides());
+        }
     }, [dispatch, token]);
     useEffect(() => { try { localStorage.setItem(ONLINE_KEY, String(online)); } catch { /* ignore */ } }, [online]);
 
@@ -107,8 +127,6 @@ export default function UiDemo() {
 
     // Rider accepts a request -> open the new Delivery details page.
     // Only one delivery at a time: the order the rider has accepted but not yet delivered.
-    const activeOrder = orders.find((order) => ["Accepted", "Picked up"].includes(order.status)) || null;
-
     const acceptOrder = async (id) => {
         if (!online) { showNotice("Go online to accept orders"); return; }
         if (activeOrder) { showNotice("Finish your current delivery before accepting a new one"); return; }
@@ -138,6 +156,12 @@ export default function UiDemo() {
             });
             showNotice(`${id} accepted successfully`);
             navigate(`/delivery/${id}`);
+            dispatch(getacceptrides()).unwrap().catch((error) => {
+                showNotice(
+                    `Ride accepted, but active deliveries could not be refreshed: ${typeof error === "string" ? error : error.message || "Please refresh the page."}`,
+                    true,
+                );
+            });
         } catch (error) {
             showNotice(typeof error === "string" ? error : error.message || "Unable to accept this delivery. Please try again.", true);
         }
@@ -203,8 +227,8 @@ export default function UiDemo() {
                 <Route path="/onboarding/:step" element={<OnboardingScreen form={form} setForm={setForm} onFinish={completeOnboarding} />} />
                 <Route path="/account-ready" element={<AccountReady onContinue={() => continueToDashboard(user)} />} />
                 <Route element={<RiderShell profile={profile} onLogout={logout} notice={notice} noticeError={noticeError} onDismiss={() => showNotice("")} />}>
-                    <Route path="/home" element={<PickupMapScreen orders={orders} onAccept={acceptOrder} onReject={rejectOrder} online={online} setOnline={setOnline} activeOrder={activeOrder} ordersLoading={orderloading} ordersError={ordererror} onRetry={() => dispatch(getallorders())} acceptLoading={acceptloading} />} />
-                    <Route path="/pickup" element={<PickupMapScreen orders={orders} onAccept={acceptOrder} onReject={rejectOrder} online={online} setOnline={setOnline} activeOrder={activeOrder} ordersLoading={orderloading} ordersError={ordererror} onRetry={() => dispatch(getallorders())} acceptLoading={acceptloading} />} />
+                    <Route path="/home" element={<PickupMapScreen orders={orders} onAccept={acceptOrder} onReject={rejectOrder} online={online} setOnline={setOnline} activeOrder={activeOrder} activeOrders={activeOrders} ordersLoading={orderloading} ordersError={ordererror} onRetry={() => dispatch(getallorders())} acceptLoading={acceptloading} acceptedRidesError={accepterror} />} />
+                    <Route path="/pickup" element={<PickupMapScreen orders={orders} onAccept={acceptOrder} onReject={rejectOrder} online={online} setOnline={setOnline} activeOrder={activeOrder} activeOrders={activeOrders} ordersLoading={orderloading} ordersError={ordererror} onRetry={() => dispatch(getallorders())} acceptLoading={acceptloading} acceptedRidesError={accepterror} />} />
                     <Route path="/dashboard" element={<DashboardScreen profile={profile} online={online} setOnline={setOnline} orders={orders} onAccept={acceptOrder} activeOrder={activeOrder} />} />
                     <Route path="/delivery/:id" element={<DeliveryDetails orders={orders} onConfirmPickup={confirmPickup} onConfirmDelivery={confirmDelivery} onResendOtp={resendOtp} />} />
                     <Route path="/orders" element={<OrdersScreen orders={orders} />} />

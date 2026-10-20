@@ -1,26 +1,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { handleaccept, handleaccreptedride, handlegetlatestorders, handlemakeonline } from "../../services/Serviceapis/DeliveryApi";
 
-const ACCEPTED_KEY = "acceptedDelivery";
-
-const loadAccepted = () => {
-    try {
-        const saved = sessionStorage.getItem(ACCEPTED_KEY);
-        return saved ? JSON.parse(saved) : null;
-    } catch {
-        return null;
-    }
-};
-
-const saveAccepted = (data) => {
-    try {
-        if (data) sessionStorage.setItem(ACCEPTED_KEY, JSON.stringify(data));
-        else sessionStorage.removeItem(ACCEPTED_KEY);
-    } catch {
-        // storage unavailable – ignore
-    }
-};
-
 // Get the latest available orders.
 export const getallorders = createAsyncThunk("get/orders", async (_, ThunkAPi) => {
     try {
@@ -61,10 +41,13 @@ export const acceptbooking = createAsyncThunk("post/accept", async (id, ThunkApi
 export const getacceptrides = createAsyncThunk("get/myacceptrides", async (_, ThunkApi) => {
     try {
         const response = await handleaccreptedride();
+        if (!Array.isArray(response.data?.data)) {
+            throw new Error("The active deliveries response has an unexpected format.");
+        }
         return response.data.data;
     }
     catch (error) {
-        return ThunkApi.rejectWithValue(error.message);
+        return ThunkApi.rejectWithValue(error.response?.data?.message || error.message || "Unable to load your active deliveries.");
     }
 })
 
@@ -81,8 +64,11 @@ const initialState = {
     },
     accpetbooking: {
         acceptloading: false,
-        acceptdata: loadAccepted(),
+        acceptdata: [],
         accepterror: null,
+        activeRidesLoading: false,
+        activeRidesStatus: "idle",
+        activeRidesError: null,
     },
 };
 
@@ -91,9 +77,8 @@ const OrdersSlice = createSlice({
     initialState,
     reducers: {
         clearAcceptedBooking: (state) => {
-            state.accpetbooking.acceptdata = null;
+            state.accpetbooking.acceptdata = [];
             state.accpetbooking.accepterror = null;
-            saveAccepted(null);
         },
     },
     extraReducers: (builder) => {
@@ -133,8 +118,14 @@ const OrdersSlice = createSlice({
             })
             .addCase(acceptbooking.fulfilled, (state, action) => {
                 state.accpetbooking.acceptloading = false;
-                state.accpetbooking.acceptdata = action.payload;
-                saveAccepted(action.payload);
+                const acceptedDelivery = action.payload?.delivery || action.payload?.order || action.payload;
+                const acceptedId = acceptedDelivery?._id;
+                if (acceptedId) {
+                    state.accpetbooking.acceptdata = [
+                        ...state.accpetbooking.acceptdata.filter((delivery) => delivery._id !== acceptedId),
+                        acceptedDelivery,
+                    ];
+                }
             })
             .addCase(acceptbooking.rejected, (state, action) => {
                 state.accpetbooking.acceptloading = false;
@@ -143,16 +134,20 @@ const OrdersSlice = createSlice({
 
             // get my accptes inly
             .addCase(getacceptrides.pending, (state) => {
-                state.accpetbooking.acceptloading = true;
-                state.accpetbooking.accepterror = null;
+                state.accpetbooking.activeRidesLoading = true;
+                state.accpetbooking.activeRidesStatus = "pending";
+                state.accpetbooking.activeRidesError = null;
             })
             .addCase(getacceptrides.fulfilled, (state, action) => {
-                state.accpetbooking.acceptloading = false;
+                state.accpetbooking.activeRidesLoading = false;
+                state.accpetbooking.activeRidesStatus = "fulfilled";
                 state.accpetbooking.acceptdata = action.payload;
+                state.accpetbooking.activeRidesError = null;
             })
             .addCase(getacceptrides.rejected, (state, action) => {
-                state.accpetbooking.acceptloading = false;
-                state.accpetbooking.accepterror = action.payload;
+                state.accpetbooking.activeRidesLoading = false;
+                state.accpetbooking.activeRidesStatus = "rejected";
+                state.accpetbooking.activeRidesError = action.payload;
             })
     },
 });

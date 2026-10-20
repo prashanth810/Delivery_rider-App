@@ -342,15 +342,23 @@ export default function DeliveryDetails({ orders = [], onConfirmPickup, onConfir
     const { id } = useParams();
 
     // Accepted delivery returned by the accept API (stored in redux)
-    const acceptedDelivery = useSelector((state) => state.orders.accpetbooking.acceptdata);
+    const {
+        acceptdata: acceptedDelivery,
+        activeRidesLoading,
+        activeRidesStatus,
+        activeRidesError,
+    } = useSelector(
+        (state) => state.orders.accpetbooking,
+    );
     const apiOrder = useMemo(() => {
-        const data = acceptedDelivery?.data?.data
+        const responseData = acceptedDelivery?.data?.data
             || acceptedDelivery?.data
             || acceptedDelivery?.delivery
             || acceptedDelivery?.order
             || acceptedDelivery;
-        if (!data || ![data._id, data.orderId].includes(id)) return null;
-        return mapDelivery(acceptedDelivery);
+        const deliveries = Array.isArray(responseData) ? responseData : [responseData];
+        const delivery = deliveries.find((item) => item && [item._id, item.orderId].includes(id));
+        return delivery ? mapDelivery(delivery) : null;
     }, [acceptedDelivery, id]);
 
     // API data first, then fall back to the orders passed in as a prop
@@ -383,6 +391,22 @@ export default function DeliveryDetails({ orders = [], onConfirmPickup, onConfir
         toPickup ? order?.pickup : order?.drop,
         destAddress,
     );
+
+    if (!order && (activeRidesStatus === "idle" || activeRidesLoading)) return <DeliverySkeleton />;
+
+    if (!order && activeRidesStatus === "rejected") {
+        return (
+            <section className="mx-auto max-w-xl rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm">
+                <h1 className="text-lg font-bold text-slate-900">Couldn’t load this delivery</h1>
+                <p className="mt-2 text-sm text-slate-600" role="alert">
+                    {activeRidesError || "Please check your connection and try again."}
+                </p>
+                <Link to="/home" className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-brand-900 px-5 text-sm font-semibold text-white!">
+                    Back to rides
+                </Link>
+            </section>
+        );
+    }
 
     if (!order || !["Accepted", "Picked up", "Delivered"].includes(order.status)) {
         return <Navigate to="/home" replace />;

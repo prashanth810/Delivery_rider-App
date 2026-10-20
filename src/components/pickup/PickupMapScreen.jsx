@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { FiArrowRight, FiMapPin, FiShield, FiTruck } from "react-icons/fi";
+import { FiArrowRight, FiClock, FiMapPin, FiShield } from "react-icons/fi";
 import PickupMap from "./PickupMap";
 import { RIDER_LOCATION } from "./demoOrders";
 import PickupRequestPanel from "./PickupRequestPanel";
@@ -21,10 +21,12 @@ export default function PickupMapScreen({
     online,
     setOnline,
     activeOrder = null,
+    activeOrders = [],
     ordersLoading = false,
     ordersError = null,
     onRetry,
     acceptLoading = false,
+    acceptedRidesError = null,
 }) {
     const dispatch = useDispatch();
     const [onlineUpdating, setOnlineUpdating] = useState(false);
@@ -41,6 +43,13 @@ export default function PickupMapScreen({
     const hasPickupLocations = requests.some(
         (order) => Number.isFinite(order.pickup?.lat) && Number.isFinite(order.pickup?.lng)
     );
+    const formatAcceptedAt = (value) => {
+        if (!value) return "Recently accepted";
+        const date = new Date(value);
+        return Number.isNaN(date.getTime())
+            ? "Recently accepted"
+            : `Accepted ${date.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`;
+    };
 
     // Persist online/offline status through the API. Update the UI only after success.
     const handleAvailabilityToggle = async () => {
@@ -119,34 +128,55 @@ export default function PickupMapScreen({
                 </p>
             )}
 
-            {activeOrder && (
-                <section
-                    className="mb-4 flex flex-wrap items-center gap-4 rounded-2xl border border-brand-200 bg-brand-50 p-4"
-                    aria-label="Ongoing delivery"
-                >
-                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand-700 text-xl text-white">
-                        <FiTruck />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700">
-                            Ongoing delivery
-                        </span>
-                        <h2 className="truncate text-base font-bold text-slate-900">
-                            {activeOrder.store} · #{activeOrder.orderNo}
-                        </h2>
-                        <p className="text-xs text-slate-500">
-                            {activeOrder.status === "Accepted"
-                                ? "Go to the store and pick up the order"
-                                : `On the way to ${activeOrder.customer?.name}`} · Finish this delivery to accept new requests.
-                        </p>
-                    </div>
-                    <Link
-                        to={`/delivery/${activeOrder.id}`}
-                        className="inline-flex items-center gap-2 rounded-xl bg-brand-900 px-5 py-3 text-sm font-semibold text-white! transition hover:bg-brand-700"
-                    >
-                        View delivery <FiArrowRight />
-                    </Link>
+            {activeOrders.length > 0 && (
+                <section className="mb-4 space-y-3" aria-label="Accepted deliveries">
+                    {activeOrders.map((order) => (
+                        <article key={order.id} className="accepted-ride-card">
+                            <span className="accepted-ride-image">
+                                {order.items?.[0]?.image
+                                    ? <img src={order.items[0].image} alt={order.items[0].name || "Delivery item"} loading="lazy" />
+                                    : <FiMapPin aria-hidden="true" />}
+                            </span>
+                            <div className="accepted-ride-details">
+                                <span className="accepted-ride-label">Your accepted delivery</span>
+                                <h2>
+                                    {order.items?.[0]?.name || order.store}
+                                    {order.items?.[0]?.weight ? ` (${order.items[0].weight})` : ""}
+                                    {order.items?.[0]?.qty > 1 ? ` × ${order.items[0].qty}` : ""}
+                                    {order.items?.length > 1 ? ` + ${order.items.length - 1} more` : ""}
+                                </h2>
+                                <p className="accepted-ride-pickup">
+                                    <FiMapPin aria-hidden="true" />
+                                    <span>{order.pickupAddress || "Pickup address unavailable"}</span>
+                                </p>
+                                <p className="accepted-ride-time">
+                                    <FiClock aria-hidden="true" />
+                                    {formatAcceptedAt(order.acceptedAt)}
+                                </p>
+                            </div>
+                            <div className="accepted-ride-meta">
+                                <strong>
+                                    {order.paymentMethod === "ONLINE"
+                                        ? "Paid online"
+                                        : `Collect ₹${Number(order.amountToCollect || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                                </strong>
+                                <span>In progress</span>
+                            </div>
+                            <Link
+                                to={`/delivery/${order.id}`}
+                                className="accepted-ride-link"
+                            >
+                                Continue delivery <FiArrowRight aria-hidden="true" />
+                            </Link>
+                        </article>
+                    ))}
                 </section>
+            )}
+
+            {acceptedRidesError && (
+                <p className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                    Could not refresh accepted deliveries: {acceptedRidesError}
+                </p>
             )}
 
             <section className="pickup-layout">
