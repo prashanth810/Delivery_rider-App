@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import { handleaccept, handleaccreptedride, handlegetlatestorders, handlemakeonline } from "../../services/Serviceapis/DeliveryApi";
+import { handleaccept, handleaccreptedride, handledelievred, handlegetlatestorders, handlemakeonline, handlepickup } from "../../services/Serviceapis/DeliveryApi";
 
 // Get the latest available orders.
 export const getallorders = createAsyncThunk("get/orders", async (_, ThunkAPi) => {
@@ -51,6 +51,32 @@ export const getacceptrides = createAsyncThunk("get/myacceptrides", async (_, Th
     }
 })
 
+// confirm pickup (items collected from the store) -> returns the delivery with status PICKED_UP
+export const acceptpickup = createAsyncThunk("put/pickup", async (id, ThunkApi) => {
+    try {
+        const resposne = await handlepickup(id);
+        return resposne.data.data;
+    }
+    catch (error) {
+        return ThunkApi.rejectWithValue(error.response?.data?.message || error.message || "Unable to confirm the pickup.");
+    }
+})
+
+// complete the delivery with the customer's OTP -> returns the delivery with status DELIVERED
+// the server checks the OTP: wrong OTP / too many attempts come back as a message
+export const deliverysuccess = createAsyncThunk("post/delivery", async ({ id, otp }, ThunkApi) => {
+    try {
+        const response = await handledelievred(id, otp);
+        return response.data.data;
+    }
+    catch (error) {
+        const data = error.response?.data;
+        const message = data?.message || error.message || "Unable to complete the delivery.";
+        const left = data?.attemptsLeft;
+        return ThunkApi.rejectWithValue(left !== undefined ? `${message} (${left} attempt${left === 1 ? "" : "s"} left)` : message);
+    }
+})
+
 const initialState = {
     orderdata: {
         orderloading: false,
@@ -69,6 +95,10 @@ const initialState = {
         activeRidesLoading: false,
         activeRidesStatus: "idle",
         activeRidesError: null,
+        pickuploading: false,
+        pickuperror: null,
+        deliveryloading: false,
+        deliveryerror: null,
     },
 };
 
@@ -76,6 +106,15 @@ const OrdersSlice = createSlice({
     name: "orders",
     initialState,
     reducers: {
+        // live socket events
+        liveOrderAdded: (state, action) => {
+            const job = action.payload;
+            if (!job?._id) return;
+            if (!state.orderdata.orderlist.some((o) => o._id === job._id)) state.orderdata.orderlist.unshift(job);
+        },
+        liveOrderRemoved: (state, action) => {
+            state.orderdata.orderlist = state.orderdata.orderlist.filter((o) => o._id !== action.payload);
+        },
         clearAcceptedBooking: (state) => {
             state.accpetbooking.acceptdata = [];
             state.accpetbooking.accepterror = null;
@@ -84,8 +123,8 @@ const OrdersSlice = createSlice({
     extraReducers: (builder) => {
         builder
             // order data
-            .addCase(getallorders.pending, (state) => {
-                state.orderdata.orderloading = true;
+            .addCase(getallorders.pending, (state, action) => {
+                if (!action.meta.arg?.silent) state.orderdata.orderloading = true;
                 state.orderdata.ordererror = null;
             })
             .addCase(getallorders.fulfilled, (state, action) => {
@@ -149,8 +188,46 @@ const OrdersSlice = createSlice({
                 state.accpetbooking.activeRidesStatus = "rejected";
                 state.accpetbooking.activeRidesError = action.payload;
             })
+
+            // confirm pickup -> the delivery in my accepted list becomes PICKED_UP
+            .addCase(acceptpickup.pending, (state) => {
+                state.accpetbooking.pickuploading = true;
+                state.accpetbooking.pickuperror = null;
+            })
+            .addCase(acceptpickup.fulfilled, (state, action) => {
+                state.accpetbooking.pickuploading = false;
+                const updated = action.payload?.delivery || action.payload;
+                if (updated?._id && Array.isArray(state.accpetbooking.acceptdata)) {
+                    state.accpetbooking.acceptdata = state.accpetbooking.acceptdata.map((delivery) =>
+                        delivery._id === updated._id ? { ...delivery, ...updated } : delivery
+                    );
+                }
+            })
+            .addCase(acceptpickup.rejected, (state, action) => {
+                state.accpetbooking.pickuploading = false;
+                state.accpetbooking.pickuperror = action.payload;
+            })
+
+            // complete delivery (OTP) -> the delivery in my accepted list becomes DELIVERED
+            .addCase(deliverysuccess.pending, (state) => {
+                state.accpetbooking.deliveryloading = true;
+                state.accpetbooking.deliveryerror = null;
+            })
+            .addCase(deliverysuccess.fulfilled, (state, action) => {
+                state.accpetbooking.deliveryloading = false;
+                const updated = action.payload?.delivery || action.payload;
+                if (updated?._id && Array.isArray(state.accpetbooking.acceptdata)) {
+                    state.accpetbooking.acceptdata = state.accpetbooking.acceptdata.map((delivery) =>
+                        delivery._id === updated._id ? { ...delivery, ...updated } : delivery
+                    );
+                }
+            })
+            .addCase(deliverysuccess.rejected, (state, action) => {
+                state.accpetbooking.deliveryloading = false;
+                state.accpetbooking.deliveryerror = action.payload;
+            })
     },
 });
 
-export const { clearAcceptedBooking } = OrdersSlice.actions;
+export const { clearAcceptedBooking, liveOrderAdded, liveOrderRemoved } = OrdersSlice.actions;
 export default OrdersSlice.reducer;

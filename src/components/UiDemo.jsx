@@ -7,7 +7,8 @@ import { DashboardScreen, EarningsScreen, OrdersScreen, ProfileScreen } from "./
 import RiderShell from "./layout/RiderShell";
 import PickupMapScreen from "./pickup/PickupMapScreen";
 import DeliveryDetails from "./pickup/Deliverydetails";
-import { acceptbooking, getacceptrides, getallorders } from "../redux/Slices/OrdersSlice";
+import { acceptbooking, acceptpickup, deliverysuccess, getacceptrides, getallorders } from "../redux/Slices/OrdersSlice";
+import useLiveOrders from "../hooks/useLiveOrders";
 import { riderLogout } from "../redux/Slices/AuthSlice";
 import "./UiDemo.css";
 
@@ -89,6 +90,7 @@ export default function UiDemo() {
     }));
     const [form, setForm] = useState({ name: "Alex Rider" });
     const [online, setOnline] = useState(loadOnline);
+    useLiveOrders(token, online);
     const [orderUpdates, setOrderUpdates] = useState({});
     const [notice, setNotice] = useState("");
     const [noticeError, setNoticeError] = useState(false);
@@ -171,22 +173,27 @@ export default function UiDemo() {
         updateOrder(id, { status: "Rejected" });
         showNotice(`${id} request rejected`);
     };
-    const confirmPickup = (id) => {
-        updateOrder(id, { status: "Picked up", pickedAt: nowTime() });
-        showNotice("Pickup confirmed. Head to the customer.");
+    // Pickup is saved on the server first, the screen moves to "Picked up" only after success.
+    const confirmPickup = async (id) => {
+        try {
+            await dispatch(acceptpickup(id)).unwrap();
+            updateOrder(id, { status: "Picked up", pickedAt: nowTime() });
+            showNotice("Pickup confirmed. Head to the customer.");
+        } catch (error) {
+            showNotice(typeof error === "string" ? error : error?.message || "Unable to confirm the pickup. Please try again.", true);
+        }
     };
-    // Delivery is completed only when the OTP entered by the rider matches the customer's OTP.
-    // (No backend yet: swap this check for your "verify delivery OTP" API call when it exists.)
-    const confirmDelivery = (id, otp) => {
-        const order = orders.find((item) => item.id === id);
-        if (!order || order.deliveryOtp !== otp) return false;
-        updateOrder(id, { status: "Delivered", deliveredAt: nowTime() });
-        showNotice("OTP verified. Delivery completed, great job!");
-        return true;
-    };
-    const resendOtp = (id) => {
-        updateOrder(id, { deliveryOtp: generateOtp() });
-        showNotice("A new OTP was sent to the customer");
+    // Delivery is completed only when the server accepts the OTP the customer gave.
+    // Returns { ok: true } or { ok: false, message } so the OTP boxes can show the exact error.
+    const confirmDelivery = async (id, otp) => {
+        try {
+            await dispatch(deliverysuccess({ id, otp })).unwrap();
+            updateOrder(id, { status: "Delivered", deliveredAt: nowTime() });
+            showNotice("OTP verified. Delivery completed, great job!");
+            return { ok: true };
+        } catch (error) {
+            return { ok: false, message: typeof error === "string" ? error : error?.message || "Unable to verify the OTP. Please try again." };
+        }
     };
     const completeOnboarding = () => {
         showNotice("Rider setup preview complete");
@@ -230,7 +237,7 @@ export default function UiDemo() {
                     <Route path="/home" element={<PickupMapScreen orders={orders} onAccept={acceptOrder} onReject={rejectOrder} online={online} setOnline={setOnline} activeOrder={activeOrder} activeOrders={activeOrders} ordersLoading={orderloading} ordersError={ordererror} onRetry={() => dispatch(getallorders())} acceptLoading={acceptloading} acceptedRidesError={accepterror} />} />
                     <Route path="/pickup" element={<PickupMapScreen orders={orders} onAccept={acceptOrder} onReject={rejectOrder} online={online} setOnline={setOnline} activeOrder={activeOrder} activeOrders={activeOrders} ordersLoading={orderloading} ordersError={ordererror} onRetry={() => dispatch(getallorders())} acceptLoading={acceptloading} acceptedRidesError={accepterror} />} />
                     <Route path="/dashboard" element={<DashboardScreen profile={profile} online={online} setOnline={setOnline} orders={orders} onAccept={acceptOrder} activeOrder={activeOrder} />} />
-                    <Route path="/delivery/:id" element={<DeliveryDetails orders={orders} onConfirmPickup={confirmPickup} onConfirmDelivery={confirmDelivery} onResendOtp={resendOtp} />} />
+                    <Route path="/delivery/:id" element={<DeliveryDetails orders={orders} onConfirmPickup={confirmPickup} onConfirmDelivery={confirmDelivery} />} />
                     <Route path="/orders" element={<OrdersScreen orders={orders} />} />
                     <Route path="/earnings" element={<EarningsScreen />} />
                     <Route path="/profile" element={<ProfileScreen profile={profile} setProfile={setProfile} onNotify={setNotice} />} />

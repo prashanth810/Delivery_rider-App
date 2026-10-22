@@ -156,7 +156,7 @@ function stepSubtitle(index, order, state) {
     if (index === 1) return state === "done" ? "Completed" : "In progress";
     if (index === 2) return state === "done" ? order.pickedAt || "Done" : "Awaiting confirmation";
     if (state === "done") return order.deliveredAt || "Done";
-    return state === "current" ? "In progress" : "Complete order";
+    return state === "current" ? "Awaiting OTP" : "Complete order";
 }
 
 function Stepper({ order }) {
@@ -177,10 +177,12 @@ function Stepper({ order }) {
                         )}
 
                         <span
-                            className={`relative z-10 grid h-8 w-8 place-items-center rounded-full border-2 text-sm transition-colors sm:h-8 sm:w-8 ${state === "todo"
-                                ? "border-slate-200 bg-white text-slate-400"
-                                : "border-brand-700 bg-brand-700 text-white"
-                                } ${state === "current" ? "ring-2 ring-brand-100" : ""}`}
+                            className={`relative z-10 grid h-8 w-8 place-items-center rounded-full border-2 text-sm transition-colors sm:h-8 sm:w-8 ${state === "done"
+                                ? "border-brand-700 bg-brand-700 text-white"
+                                : state === "current"
+                                    ? "border-brand-700 bg-white text-brand-700 ring-4 ring-brand-100"
+                                    : "border-slate-200 bg-white text-slate-400"
+                                }`}
                         >
                             {state === "done" ? <FiCheck aria-hidden="true" /> : <Icon aria-hidden="true" />}
                         </span>
@@ -229,19 +231,22 @@ function LocationChip({ status, accuracy, onRetry }) {
     );
 }
 
-// Rider asks the customer for the OTP and types it here. Delivery is only completed when it matches.
-function OtpEntry({ customerName, demoOtp, onVerify, onResend }) {
+// Rider asks the customer for the OTP and types it here.
+// The server checks it: the delivery is completed only when the customer's OTP is correct.
+function OtpEntry({ customerName, demoOtp, onVerify }) {
     const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(""));
     const [error, setError] = useState("");
-    const [resent, setResent] = useState(false);
+    const [loading, setLoading] = useState(false);
     const refs = useRef([]);
     const otp = digits.join("");
 
-    const reset = () => { setDigits(Array(OTP_LENGTH).fill("")); refs.current[0]?.focus(); };
+    const reset = () => {
+        setDigits(Array(OTP_LENGTH).fill(""));
+        setTimeout(() => refs.current[0]?.focus(), 0);
+    };
     const change = (index, event) => {
         const value = event.target.value.replace(/\D/g, "").slice(-1);
         setError("");
-        setResent(false);
         setDigits((current) => current.map((digit, i) => (i === index ? value : digit)));
         if (value && index < OTP_LENGTH - 1) refs.current[index + 1]?.focus();
     };
@@ -253,22 +258,31 @@ function OtpEntry({ customerName, demoOtp, onVerify, onResend }) {
         const text = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
         if (!text) return;
         event.preventDefault();
+        setError("");
         setDigits(Array.from({ length: OTP_LENGTH }, (_, i) => text[i] || ""));
         refs.current[Math.min(text.length, OTP_LENGTH - 1)]?.focus();
     };
-    const submit = () => {
-        if (otp.length < OTP_LENGTH) { setError(`Enter the ${OTP_LENGTH}-digit OTP from the customer`); return; }
-        if (!onVerify(otp)) {
-            setError("Incorrect OTP. Ask the customer to check the code sent to their phone.");
+    const submit = async () => {
+        if (loading) return;
+        if (otp.length < OTP_LENGTH || !/^\d+$/.test(otp)) {
+            setError(`Enter the ${OTP_LENGTH}-digit OTP from the customer`);
+            return;
+        }
+        setLoading(true);
+        setError("");
+        const result = await onVerify(otp);
+        setLoading(false);
+        // on success the order becomes "Delivered" and this box disappears
+        if (!result?.ok) {
+            setError(result?.message || "Incorrect OTP. Ask the customer to check the code in their app.");
             reset();
         }
     };
-    const resend = () => { onResend(); reset(); setError(""); setResent(true); };
 
     return (
         <div className="mt-3 rounded-xl border border-slate-200 p-4">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-900"><FiLock className="text-brand-700" /> Customer delivery OTP</div>
-            <p className="mt-1 text-xs text-slate-500">Ask {customerName} for the {OTP_LENGTH}-digit OTP sent to their phone, then enter it to complete the delivery.</p>
+            <p className="mt-1 text-xs text-slate-500">Ask {customerName} for the {OTP_LENGTH}-digit OTP shown in their app, then enter it to complete the delivery.</p>
             <div className="mt-3 flex justify-center gap-3" onPaste={paste}>
                 {digits.map((digit, index) => (
                     <input
@@ -280,22 +294,21 @@ function OtpEntry({ customerName, demoOtp, onVerify, onResend }) {
                         inputMode="numeric"
                         autoComplete="one-time-code"
                         maxLength={1}
+                        disabled={loading}
                         aria-label={`OTP digit ${index + 1}`}
-                        className={`h-12 w-12 rounded-xl border-2 text-center text-xl font-bold text-slate-900 outline-none transition focus:border-brand-700 focus:ring-4 focus:ring-brand-100 ${error ? "border-red-300" : "border-slate-200"}`}
+                        className={`h-12 w-12 rounded-xl border-2 text-center text-xl font-bold text-slate-900 outline-none transition focus:border-brand-700 focus:ring-4 focus:ring-brand-100 disabled:bg-slate-50 ${error ? "border-red-300" : "border-slate-200"}`}
                     />
                 ))}
             </div>
             {error && <p className="mt-2 text-center text-xs font-medium text-red-600" role="alert">{error}</p>}
-            {resent && !error && <p className="mt-2 text-center text-xs font-medium text-brand-700">A new OTP has been sent to the customer.</p>}
             {SHOW_DEMO_OTP && demoOtp && (
                 <p className="mt-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-center text-[11px] text-slate-500">
                     Demo only – the customer&apos;s OTP is <strong className="tracking-widest text-slate-800">{demoOtp}</strong>
                 </p>
             )}
-            <button type="button" onClick={submit} disabled={otp.length < OTP_LENGTH} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-900 py-3.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">
-                <FiCheckCircle /> Verify OTP &amp; confirm delivery
+            <button type="button" onClick={submit} disabled={otp.length < OTP_LENGTH || loading} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-900 py-3.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">
+                {loading ? <><FiRefreshCw className="animate-spin" /> Verifying…</> : <><FiCheckCircle /> Verify OTP &amp; confirm delivery</>}
             </button>
-            <button type="button" onClick={resend} className="mx-auto mt-2 flex items-center gap-1.5 text-xs font-semibold text-brand-700 hover:underline"><FiRefreshCw /> Resend OTP to customer</button>
         </div>
     );
 }
@@ -338,7 +351,7 @@ function DeliverySkeleton() {
     );
 }
 
-export default function DeliveryDetails({ orders = [], onConfirmPickup, onConfirmDelivery, onResendOtp }) {
+export default function DeliveryDetails({ orders = [], onConfirmPickup, onConfirmDelivery }) {
     const { id } = useParams();
 
     // Accepted delivery returned by the accept API (stored in redux)
@@ -606,7 +619,6 @@ export default function DeliveryDetails({ orders = [], onConfirmPickup, onConfir
                                 customerName={customerName}
                                 demoOtp={order.deliveryOtp}
                                 onVerify={(otp) => onConfirmDelivery?.(order.id, otp)}
-                                onResend={() => onResendOtp?.(order.id)}
                             />
                         )}
 

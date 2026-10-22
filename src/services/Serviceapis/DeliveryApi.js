@@ -20,7 +20,8 @@ export const handlemakeonline = async (data) => {
         return resposne;
     }
     catch (error) {
-        console.log(error.message);
+        console.log(error.response?.data || error.message);
+        throw error; // let the thunk's rejectWithValue show the real message
     }
 }
 
@@ -39,3 +40,14 @@ export const handleaccept = async (id) => {
 export const handleaccreptedride = async () => {
     return deliveryApi.get(`${baseurl}/deliveries/my/active`);
 }
+
+// confirm pickup (rider collected the items from the store)
+export const handlepickup = async (id) => {
+    return deliveryApi.patch(`${baseurl}/deliveries/${id}/pickup`);
+};
+
+
+// complete the delivery with the OTP given by the customer
+export const handledelievred = async (id, otp) => {
+    return deliveryApi.post(`${baseurl}/deliveries/${id}/deliver`, { otp });
+};
