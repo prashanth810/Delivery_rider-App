@@ -15,6 +15,15 @@ export const Registerapi = async (data) => {
     }
 }
 
+// rider register – called ONCE, at the end of the 5 onboarding steps (multipart: details + documents + selfie)
+// Change the path here (or set VITE_RIDER_REGISTER_PATH in .env) if your backend uses a different URL.
+export const RiderRegisterApi = (formData) =>
+    authApi.post(
+        import.meta.env.VITE_RIDER_REGISTER_PATH || `${baseurl}/rider/register`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
+    );
+
 // login 
 export const LoginApi = async (data) => {
     const { email, password } = data;

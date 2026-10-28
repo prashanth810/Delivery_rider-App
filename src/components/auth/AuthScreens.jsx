@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
     FiArrowRight,
@@ -56,7 +56,8 @@ function AuthFrame({ children, mode }) {
 export function LoginScreen({ onContinue }) {
     const dispatch = useDispatch();
     const loading = useSelector((state) => state.auth.riderlogin.loginloading);
-    const [email, setEmail] = useState("");
+    const { state } = useLocation();
+    const [email, setEmail] = useState(state?.email || "");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
 
@@ -83,6 +84,8 @@ export function LoginScreen({ onContinue }) {
             <p className="auth-subtitle">
                 Sign in to pick up where you left off.
             </p>
+
+            {state?.message && <p className="auth-notice" role="status"><FiCheckCircle aria-hidden="true" /> {state.message}</p>}
 
             <form
                 className="demo-form"
@@ -226,12 +229,12 @@ export function RegisterScreen({ onContinue }) {
                 <p className="password-hint">Use at least 8 characters, including uppercase, lowercase, and a number.</p>
                 <button ref={submitRef} className="primary-button auth-submit" type="submit">Register <FiArrowRight /></button>
             </form>
-            <p className="verification-note"><FiShield aria-hidden="true" /> We’ll verify your phone number before moving to your rider profile.</p>
+            <p className="verification-note"><FiShield aria-hidden="true" /> We’ll verify your phone number, then you’ll complete 5 quick steps to create your rider account.</p>
             {showOtp && (
                 <RegisterOtpModal
                     phone={form.phone}
                     onClose={closeOtp}
-                    onVerified={() => onContinue({ ...form, name: form.name.trim() })}
+                    onVerified={() => onContinue({ ...form, name: form.name.trim(), email: form.email.trim() })}
                 />
             )}
         </AuthFrame>

@@ -3779,3 +3779,27 @@ select:focus-visible {
         transition-duration: .01ms !important;
     }
 }
+/* ===== signup / onboarding additions ===== */
+.onboarding-cancel { border: 0; background: none; color: #63736a; font-size: 12px; font-weight: 650; cursor: pointer; }
+.onboarding-cancel:hover { color: #b42318; }
+.step-link { display: contents; color: inherit; text-decoration: none; }
+.form-grid .text-input[aria-invalid="true"], .form-grid select[aria-invalid="true"] { border-color: #e05252; }
+.form-grid label .field-error { margin: 0; }
+.upload-list .field-error { margin: 6px 2px 0; }
+.upload-card.is-done { border-color: #9acbb1; background: #f4fbf6; }
+.upload-card.has-error { border-color: #e05252; }
+.upload-remove { display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 8px; background: transparent; color: #8a958d; cursor: pointer; }
+.upload-remove:hover { background: #fdecec; color: #b42318; }
+.photo-frame { display: grid; width: 190px; height: 190px; place-items: center; overflow: hidden; border: 2px dashed #9acbb1; border-radius: 50%; background: #f1f8f3; color: #5ba17e; font-size: 52px; }
+.photo-frame img, .photo-frame video { width: 100%; height: 100%; object-fit: cover; }
+.photo-frame video { transform: scaleX(-1); }
+.photo-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.photo-button { position: relative; overflow: hidden; }
+.review-photo { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #edf0ed; font-size: 12px; }
+.review-photo span { color: #7b877f; }
+.review-photo img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; }
+.review-password { display: grid; gap: 8px; margin-top: 16px; font-size: 12px; color: #34443a; }
+.terms-row { display: flex; align-items: flex-start; gap: 9px; margin-top: 18px; color: #4d5d53; font-size: 12px; line-height: 1.5; cursor: pointer; }
+.terms-row input { margin-top: 2px; accent-color: #087b55; }
+.auth-notice { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 11px 13px; border: 1px solid #b7e0c6; border-radius: 10px; background: #effaf3; color: #0d6a44; font-size: 12px; font-weight: 600; }
+.step-list .step-link { display: flex; align-items: center; gap: 12px; }
