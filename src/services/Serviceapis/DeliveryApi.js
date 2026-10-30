@@ -46,6 +46,10 @@ export const handlepickup = async (id) => {
     return deliveryApi.patch(`${baseurl}/deliveries/${id}/pickup`);
 };
 
+// resend customer OTP email
+export const handleresendotp = async (id) => {
+    return deliveryApi.post(`${baseurl}/deliveries/${id}/resend-otp`);
+};
 
 // complete the delivery with the OTP given by the customer
 export const handledelievred = async (id, otp) => {

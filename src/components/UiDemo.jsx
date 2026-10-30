@@ -201,7 +201,7 @@ export default function UiDemo() {
         try {
             await dispatch(acceptpickup(id)).unwrap();
             updateOrder(id, { status: "Picked up", pickedAt: nowTime() });
-            showNotice("Pickup confirmed. Head to the customer.");
+            showNotice("Pickup confirmed. OTP sent to customer email. Head to the customer.");
         } catch (error) {
             showNotice(typeof error === "string" ? error : error?.message || "Unable to confirm the pickup. Please try again.", true);
         }

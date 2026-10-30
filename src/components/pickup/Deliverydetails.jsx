@@ -23,6 +23,7 @@ import {
 } from "react-icons/fi";
 import DeliveryMap from "./DeliveryMap";
 import { RIDER_LOCATION } from "../pickup/demoOrders";
+import { handleresendotp } from "../../services/Serviceapis/DeliveryApi";
 import { haversineKm, isApproximate, formatAccuracy, useAddressOf, useResolvedPoint, useRiderLocation } from "../../hooks/Useriderlocation";
 
 const money = (value) => `₹${Number(value || 0).toLocaleString("en-IN")}`;
@@ -233,10 +234,26 @@ function LocationChip({ status, accuracy, onRetry }) {
 
 // Rider asks the customer for the OTP and types it here.
 // The server checks it: the delivery is completed only when the customer's OTP is correct.
-function OtpEntry({ customerName, demoOtp, onVerify }) {
+function OtpEntry({ customerName, demoOtp, orderId, onVerify }) {
     const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(""));
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [resending, setResending] = useState(false);
+    const [resendStatus, setResendStatus] = useState("");
+
+    const handleResend = async () => {
+        if (!orderId || resending) return;
+        try {
+            setResending(true);
+            setResendStatus("");
+            const res = await handleresendotp(orderId);
+            setResendStatus(res.data?.message || "OTP resent to customer email!");
+        } catch (err) {
+            setResendStatus(err.response?.data?.message || "Failed to resend OTP");
+        } finally {
+            setResending(false);
+        }
+    };
     const refs = useRef([]);
     const otp = digits.join("");
 
@@ -282,7 +299,7 @@ function OtpEntry({ customerName, demoOtp, onVerify }) {
     return (
         <div className="mt-3 rounded-xl border border-slate-200 p-4">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-900"><FiLock className="text-brand-700" /> Customer delivery OTP</div>
-            <p className="mt-1 text-xs text-slate-500">Ask {customerName} for the {OTP_LENGTH}-digit OTP shown in their app, then enter it to complete the delivery.</p>
+            <p className="mt-1 text-xs text-slate-500">Ask {customerName} for the {OTP_LENGTH}-digit OTP sent to their email, then enter it to complete the delivery.</p>
             <div className="mt-3 flex justify-center gap-3" onPaste={paste}>
                 {digits.map((digit, index) => (
                     <input
@@ -309,6 +326,17 @@ function OtpEntry({ customerName, demoOtp, onVerify }) {
             <button type="button" onClick={submit} disabled={otp.length < OTP_LENGTH || loading} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-900 py-3.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">
                 {loading ? <><FiRefreshCw className="animate-spin" /> Verifying…</> : <><FiCheckCircle /> Verify OTP &amp; confirm delivery</>}
             </button>
+            <div className="mt-2 flex items-center justify-between text-xs">
+                <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resending}
+                    className="inline-flex items-center gap-1.5 font-semibold text-brand-700 hover:underline disabled:opacity-50"
+                >
+                    <FiRefreshCw className={resending ? "animate-spin" : ""} /> Resend OTP email
+                </button>
+                {resendStatus && <span className="text-[11px] text-slate-600">{resendStatus}</span>}
+            </div>
         </div>
     );
 }
@@ -618,6 +646,7 @@ export default function DeliveryDetails({ orders = [], onConfirmPickup, onConfir
                             <OtpEntry
                                 customerName={customerName}
                                 demoOtp={order.deliveryOtp}
+                                orderId={order.id}
                                 onVerify={(otp) => onConfirmDelivery?.(order.id, otp)}
                             />
                         )}
