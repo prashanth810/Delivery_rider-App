@@ -1,23 +1,38 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { FiCheck } from "react-icons/fi";
+import { FiClock } from "react-icons/fi";
 import { Button, Logo } from "../components/ui";
 import { logout } from "../redux/Slices/AuthSlice";
 
-// Account is created -> sign the rider out so they log in fresh.
+// Account is submitted -> waiting for admin verification
 const AccountReady = () => {
     const dispatch = useDispatch();
     const navigate = useNavigate();
     useEffect(() => { dispatch(logout()); }, [dispatch]);
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-brand-50 to-white px-5 text-center">
+        <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-amber-50 to-white px-5 text-center">
             <Logo />
-            <div className="animate-pop mt-10 flex h-24 w-24 items-center justify-center rounded-full bg-brand-600 text-white shadow-xl shadow-brand-600/30"><FiCheck size={48} /></div>
-            <h1 className="mt-7 text-3xl font-extrabold text-brand-900">Your rider account is ready!</h1>
-            <p className="mt-2 max-w-md text-slate-500">Verification complete. Please login with your phone number and password to start delivering and earning.</p>
-            <Button className="mt-8 min-w-56 py-3.5 text-base" onClick={() => navigate("/", { replace: true, state: { message: "Account created successfully. Please login to continue." } })}>Go to Login</Button>
+            <div className="animate-pop mt-10 flex h-24 w-24 items-center justify-center rounded-full bg-amber-500 text-white shadow-xl shadow-amber-500/30">
+                <FiClock size={48} />
+            </div>
+            <span className="mt-6 rounded-full bg-amber-100 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-amber-800">
+                Pending Verification
+            </span>
+            <h1 className="mt-4 text-3xl font-extrabold text-slate-900">Your account is under verification</h1>
+            <p className="mt-2.5 max-w-md text-base text-slate-600">
+                Please wait <strong>24 – 48 hours</strong> while our admin team verifies your submitted details and documents.
+            </p>
+            <p className="mt-1 text-sm text-slate-500">
+                You will receive a confirmation email once your account has been approved.
+            </p>
+            <Button
+                className="mt-8 min-w-56 py-3.5 text-base"
+                onClick={() => navigate("/", { replace: true, state: { message: "Your account is under verification. Please wait 24 - 48 hours for admin approval." } })}
+            >
+                Go to Login
+            </Button>
         </div>
     );
 };

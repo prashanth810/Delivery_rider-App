@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
     FiArrowLeft, FiArrowRight, FiCamera, FiCheck, FiCheckCircle, FiFileText, FiRefreshCw,
-    FiShield, FiTruck, FiUploadCloud, FiUser, FiUsers, FiX,
+    FiShield, FiTruck, FiUploadCloud, FiUser, FiUsers, FiX, FiClock,
 } from "react-icons/fi";
 import Brand from "../common/Brand";
 
@@ -220,9 +220,16 @@ export function OnboardingScreen({ form, setForm, files, setFile, hasPassword, o
                             <label>Full name<input {...input("name")} value={form.name || ""} onChange={(e) => update("name", e.target.value)} placeholder="Your full name" />{err("name")}</label>
                             <label>Date of birth<input {...input("dob")} type="date" max={maxDob} value={form.dob || ""} onChange={(e) => update("dob", e.target.value)} />{err("dob")}</label>
                             <label>Gender
-                                <select {...input("gender")} value={form.gender || ""} onChange={(e) => update("gender", e.target.value)}>
-                                    <option value="">Select gender</option><option>Male</option><option>Female</option><option>Other</option>
-                                </select>{err("gender")}
+                                <select
+                                    {...input("gender")}
+                                    value={form.gender || ""}
+                                    onChange={(e) => update("gender", e.target.value)}
+                                >
+                                    <option value="">Select gender</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                </select>
                             </label>
                             <label>City<input {...input("city")} value={form.city || ""} onChange={(e) => update("city", e.target.value)} placeholder="e.g. Hyderabad" />{err("city")}</label>
                             <label>Postal code<input {...input("pincode")} inputMode="numeric" maxLength={6} value={form.pincode || ""} onChange={(e) => update("pincode", e.target.value.replace(/\D/g, ""))} placeholder="6-digit postal code" />{err("pincode")}</label>
@@ -307,7 +314,7 @@ export function OnboardingScreen({ form, setForm, files, setFile, hasPassword, o
                             )}
                             <label className="terms-row"><input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} /> I confirm these details are correct and agree to the Terms & Privacy Policy.</label>
                             {submitError && <p className="field-error" role="alert">{submitError}</p>}
-                            <p className="review-note"><FiShield /> Your rider account is created when you press “Create my account”. You’ll then sign in to start riding.</p>
+                            <p className="review-note"><FiShield /> Your rider application will be submitted for verification. Admin reviews all details within 24–48 hours.</p>
                         </div>
                     )}
 
@@ -316,7 +323,7 @@ export function OnboardingScreen({ form, setForm, files, setFile, hasPassword, o
                             ? <button type="button" className="secondary-button" onClick={() => goTo(activeIndex - 1)}><FiArrowLeft /> Back</button>
                             : <button type="button" className="secondary-button" onClick={onCancel}><FiArrowLeft /> Back</button>}
                         {step === "review"
-                            ? <button type="button" className="primary-button" onClick={finish} disabled={submitting}>{submitting ? "Creating account..." : <>Create my account <FiCheck /></>}</button>
+                            ? <button type="button" className="primary-button" onClick={finish} disabled={submitting}>{submitting ? "Submitting for verification..." : <>Submit application <FiCheck /></>}</button>
                             : <button type="button" className="primary-button" onClick={saveAndContinue}>Save & continue <FiArrowRight /></button>}
                     </div>
                 </main>
@@ -329,7 +336,7 @@ function ReviewRow({ label, value }) {
     return <div className="review-row"><span>{label}</span><strong>{value || "Not provided"}</strong></div>;
 }
 
-// Shown only right after the account was really created.
+// Shown only right after the account was submitted for verification.
 export function AccountReady({ onDone }) {
     const navigate = useNavigate();
     const { state } = useLocation();
@@ -341,11 +348,42 @@ export function AccountReady({ onDone }) {
         <main className="ready-screen">
             <div className="ready-card">
                 <Brand />
-                <span className="ready-check"><FiCheck /></span>
-                <span className="eyebrow">ACCOUNT CREATED</span>
-                <h1>Your rider account is ready!</h1>
-                <p>Verification is complete. Sign in with your email and password to start delivering and earning.</p>
-                <button className="primary-button" onClick={() => navigate("/login", { replace: true, state: { email: state.email, message: "Account created successfully. Please sign in to continue." } })}>Go to sign in <FiArrowRight /></button>
+                <span className="ready-check" style={{ backgroundColor: "#fef3c7", color: "#d97706" }}>
+                    <FiClock />
+                </span>
+                <span className="eyebrow" style={{ color: "#d97706" }}>UNDER VERIFICATION</span>
+                <h1>Your account is under verification</h1>
+                <p style={{ lineHeight: "1.6" }}>
+                    Thank you for submitting your details and documents!<br />
+                    <strong>Please wait 24 – 48 hours</strong> while our admin team verifies your account.
+                </p>
+                <div style={{
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "10px",
+                    padding: "12px 16px",
+                    margin: "12px 0 20px",
+                    fontSize: "13px",
+                    color: "#475569",
+                    textAlign: "center"
+                }}>
+                    Once verified, a confirmation email will automatically be sent to:
+                    <div style={{ fontWeight: "700", color: "#0f172a", marginTop: "4px" }}>
+                        {state?.email || "your registered email address"}
+                    </div>
+                </div>
+                <button
+                    className="primary-button"
+                    onClick={() => navigate("/login", {
+                        replace: true,
+                        state: {
+                            email: state?.email,
+                            message: "Your account is under verification. Please wait 24 - 48 hours for admin approval."
+                        }
+                    })}
+                >
+                    Back to Sign In <FiArrowRight />
+                </button>
             </div>
         </main>
     );
